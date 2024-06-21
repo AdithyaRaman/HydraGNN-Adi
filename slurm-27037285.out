@@ -1,0 +1,33 @@
+Unloading the cpe module is insufficient to restore the system defaults.
+Please run 'source
+/opt/cray/pe/cpe/23.12/restore_lmod_system_defaults.[csh|sh]'. 
+Running "module reset". Resetting modules to system default. The following $MODULEPATH directories have been removed: /opt/cray/pe/lmod/modulefiles/mpi/gnu/12.0/ofi/1.0/cray-mpich/8.0
+
+Lmod is automatically replacing "gcc-native/12.3" with "gcc/11.2.0".
+
+Warning: This is an experimental release of NCCL with an OFI plugin for use with libfabric on Perlmutter.
+In case of issues, please refer to our known issues: https://docs.nersc.gov/current/
+and open a help ticket if your issue is not listed: https://help.nersc.gov/
+
+Inactive Modules:
+  1) cray-libsci/23.12.5
+
+The following have been reloaded with a version change:
+  1) cray-mpich/8.1.28 => cray-mpich/8.1.25
+  2) cudatoolkit/12.2 => cudatoolkit/11.7
+
+python: /global/common/software/nersc/pm-2022q4/sw/pytorch/2.0.1/bin/python
+Slurm Job Nodes:
+2024-06-21-145-50
+0: Command: examples/multidataset/train.py --modelname=multi --multi_model_list=OC2022 --inputfile=SMALL_MTL.json --num_samples=3500 --num_epoch=4 --multi --ddstore --everyone
+
+Distributed data parallel: nccl master at nid002581:8889
+Initialized for NVML Handler for NVIDIA A100-SXM4-40GB:GPU-149c11aa-0bc5-d77c-ac42-bc47372e3a27
+Traceback (most recent call last):
+  File "/global/u1/a/araman5/git/HydraGNN-Adi/examples/multidataset/train.py", line 203, in <module>
+    with ad2.open(fname, "r", MPI.COMM_SELF) as f:
+RuntimeError: [1;36m[Fri Jun 21 14:06:16 2024][1;34m [ADIOS2 EXCEPTION][0m <Toolkit> <transport::file::FilePOSIX> <CheckFile> : couldn't open file /global/u1/a/araman5/git/HydraGNN-Adi/examples/multidataset/./dataset/OC2022.bp, in call to POSIX open: errno = 2: No such file or directory[0m
+: iostream error
+srun: Job step aborted: Waiting up to 32 seconds for job step to finish.
+slurmstepd: error: *** STEP 27037285.0 ON nid002581 CANCELLED AT 2024-06-21T21:10:52 ***
+slurmstepd: error: *** JOB 27037285 ON nid002581 CANCELLED AT 2024-06-21T21:10:52 ***
