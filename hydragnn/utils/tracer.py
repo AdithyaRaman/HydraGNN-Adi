@@ -36,6 +36,8 @@ class Tracer(ABC):
         pass
 
 
+    
+
 try:
     import gptl4py as gp
 
@@ -58,8 +60,33 @@ try:
         def reset(self):
             gp.reset()
 
-
 except:
+    pass
+
+
+try:
+    import hydragnn.utils.energyTracer as et
+
+    class ENERGYTracer(Tracer):
+        def __init__(self, **kwargs):
+            et.initialize()
+
+        def start(self, name):
+            et.start(name)
+
+        def stop(self, name):
+            et.stop(name)
+
+        def enable(self):
+            et.enable()
+
+        def disable(self):
+            et.disable()
+
+        def reset(self):
+            et.reset()
+except:
+    print(f"Error importing energytracer")
     pass
 
 
@@ -96,8 +123,10 @@ def has(name):
     return name in __tracer_list__
 
 
-def initialize(trlist=["GPTLTracer", "SCOREPTracer"], verbose=False, **kwargs):
+def initialize(trlist=["GPTLTracer", "SCOREPTracer", "ENERGYTracer"], verbose=False, **kwargs):
+
     for trname in trlist:
+        
         try:
             tr = globals()[trname](**kwargs)
             __tracer_list__[trname] = tr
@@ -105,9 +134,11 @@ def initialize(trlist=["GPTLTracer", "SCOREPTracer"], verbose=False, **kwargs):
             if verbose:
                 print("tracer loading error:", trname, e)
             pass
+        
 
 
 def start(name, cudasync=False, sync=False):
+
     if cudasync and torch.cuda.is_available():
         try:
             torch.cuda.synchronize()
@@ -120,6 +151,7 @@ def start(name, cudasync=False, sync=False):
 
 
 def stop(name, cudasync=False, sync=False):
+
     if cudasync and torch.cuda.is_available():
         try:
             torch.cuda.synchronize()

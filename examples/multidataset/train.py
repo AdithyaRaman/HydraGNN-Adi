@@ -6,6 +6,8 @@ import argparse
 
 import torch
 import numpy as np
+import time
+from datetime import datetime
 
 import hydragnn
 from hydragnn.utils.time_utils import Timer
@@ -129,13 +131,20 @@ if __name__ == "__main__":
         datefmt="%H:%M:%S",
     )
 
-    log_name = "GFM" if args.log is None else args.log
+    model_name = "GFM" if args.modelname is None else args.modelname
+    #current_time = str(int(time.time()))
+    current_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+
+    model_size = args.inputfile.split("_")[0]
+    
+    log_name = f"{model_name}_{comm_size}_{model_size}_{current_time}"
+    #log_name = "GFM" if args.log is None else args.log
     hydragnn.utils.setup_log(log_name)
     writer = hydragnn.utils.get_summary_writer(log_name)
 
     log("Command: {0}\n".format(" ".join([x for x in sys.argv])), rank=0)
 
-    modelname = "GFM" if args.modelname is None else args.modelname
+
 
     tr.initialize()
     tr.disable()
@@ -389,10 +398,16 @@ if __name__ == "__main__":
 
     if tr.has("GPTLTracer"):
         import gptl4py as gp
-
         eligible = rank if args.everyone else 0
         if rank == eligible:
             gp.pr_file(os.path.join("logs", log_name, "gp_timing.p%d" % rank))
         gp.pr_summary_file(os.path.join("logs", log_name, "gp_timing.summary"))
         gp.finalize()
+
+    if tr.has("ENERGYTracer"):
+        print(f"EnergyTracer exists")
+        import hydragnn.utils.energyTracer as et
+        eligible = rank if args.everyone else 0
+        if rank == eligible:
+            et.pr_file(f"./logs/{log_name}/gpu_logs",eligible)
     sys.exit(0)

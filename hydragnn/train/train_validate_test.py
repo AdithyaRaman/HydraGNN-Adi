@@ -24,7 +24,7 @@ from hydragnn.utils.distributed import get_device, print_peak_memory, check_rema
 from hydragnn.preprocess.load_data import HydraDataLoader
 from hydragnn.utils.model import Checkpoint, EarlyStopping
 
-import os
+import os, signal, subprocess, socket
 
 from torch.profiler import record_function
 import contextlib
@@ -34,6 +34,7 @@ import torch.distributed as dist
 import pickle
 
 import hydragnn.utils.tracer as tr
+import hydragnn.utils.nvmlTracer as nvmlTracer
 import time
 from mpi4py import MPI
 
@@ -51,6 +52,11 @@ def get_nbatch(loader):
     return nbatch
 
 
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
+
 def train_validate_test(
     model,
     optimizer,
@@ -66,6 +72,7 @@ def train_validate_test(
     plot_hist_solution=False,
     create_plots=False,
 ):
+    print(f"Log Dir:{model_with_config_name}")
     num_epoch = config["Training"]["num_epoch"]
     EarlyStop = (
         config["Training"]["EarlyStopping"]
@@ -139,7 +146,14 @@ def train_validate_test(
     timer = Timer("train_validate_test")
     timer.start()
 
+    _, rank = get_comm_size_and_rank()
+
+    
+        
+    print(f'The model has {count_parameters(model):,} trainable parameters')
+    print("-----------Training Starts Here-----------")
     for epoch in range(0, num_epoch):
+        print(f"[R{rank}]Epoch:{epoch}")
         ## timer per epoch
         t0 = time.time()
         profiler.set_current_epoch(epoch)
@@ -150,16 +164,18 @@ def train_validate_test(
         with profiler as prof:
             tr.enable()
             tr.start("train")
+
             train_loss, train_taskserr = train(
                 train_loader, model, optimizer, verbosity, profiler=prof
             )
+
             tr.stop("train")
             tr.disable()
             if epoch == 0:
                 tr.reset()
 
         if int(os.getenv("HYDRAGNN_VALTEST", "1")) == 0:
-            continue
+            continuex1
 
         val_loss, val_taskserr = validate(
             val_loader, model, verbosity, reduce_ranks=True
@@ -171,6 +187,7 @@ def train_validate_test(
             reduce_ranks=True,
             return_samples=plot_hist_solution,
         )
+        
         scheduler.step(val_loss)
         if writer is not None:
             writer.add_scalar("train error", train_loss, epoch)
@@ -230,6 +247,9 @@ def train_validate_test(
                 "No time left. Early stop.",
             )
             break
+    
+    print("-----------Training Ends Here-----------")
+
 
     timer.stop()
 
@@ -421,7 +441,7 @@ def train(
     model,
     opt,
     verbosity,
-    profiler=None,
+    profiler=None
 ):
     if profiler is None:
         profiler = Profiler()
@@ -438,12 +458,13 @@ def train(
     )
 
     nbatch = get_nbatch(loader)
-    syncopt = {"cudasync": False}
+    syncopt = {"cudasync": True}
     ## 0: default (no detailed tracing), 1: sync tracing
     trace_level = int(os.getenv("HYDRAGNN_TRACE_LEVEL", "0"))
     if trace_level > 0:
         syncopt = {"cudasync": True}
     tr.start("dataload", **syncopt)
+
     if use_ddstore:
         tr.start("epoch_begin")
         loader.dataset.ddstore.epoch_begin()
@@ -461,15 +482,23 @@ def train(
             tr.start("dataload_sync", **syncopt)
             MPI.COMM_WORLD.Barrier()
             tr.stop("dataload_sync")
+            
         tr.stop("dataload", **syncopt)
+
+        
         tr.start("zero_grad")
+
         with record_function("zero_grad"):
             opt.zero_grad()
+
         tr.stop("zero_grad")
+        
         tr.start("get_head_indices")
         with record_function("get_head_indices"):
             head_index = get_head_indices(model, data)
         tr.stop("get_head_indices")
+
+
         tr.start("forward", **syncopt)
         with record_function("forward"):
             if trace_level > 0:
@@ -484,6 +513,9 @@ def train(
                 MPI.COMM_WORLD.Barrier()
                 tr.stop("forward_sync")
         tr.stop("forward", **syncopt)
+
+
+
         tr.start("backward", **syncopt)
         with record_function("backward"):
             loss.backward()
@@ -492,11 +524,15 @@ def train(
                 MPI.COMM_WORLD.Barrier()
                 tr.stop("backward_sync")
         tr.stop("backward", **syncopt)
+
+        
         tr.start("opt_step", **syncopt)
+
         # print_peak_memory(verbosity, "Max memory allocated before optimizer step")
         opt.step()
         # print_peak_memory(verbosity, "Max memory allocated after optimizer step")
         tr.stop("opt_step", **syncopt)
+
         profiler.step()
         with torch.no_grad():
             total_error += loss * data.num_graphs

@@ -76,6 +76,8 @@ def setup_log(prefix):
     logger.setLevel(logging.DEBUG)
 
     os.makedirs("./logs/%s" % prefix, exist_ok=True)
+    os.makedirs(f"./logs/{prefix}/gpu_logs", exist_ok=True)
+    
     fname = "./logs/%s/run.log" % (prefix)
     fileHandler = logging.FileHandler(fname)
 
