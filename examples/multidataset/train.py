@@ -1,3 +1,4 @@
+from datetime import datetime
 import os, json
 import logging
 import sys
@@ -24,7 +25,7 @@ from hydragnn.utils.print.print_utils import log, log0
 from hydragnn.utils.distributed import nsplit
 
 try:
-    from hydragnn.utils.adiosdataset import AdiosDataset
+    from hydragnn.utils.datasets.adiosdataset import AdiosDataset
 except ImportError:
     pass
 
@@ -135,6 +136,9 @@ if __name__ == "__main__":
     )
 
     log_name = "GFM" if args.log is None else args.log
+    current_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    log_name = f"{log_name}_{comm_size}_{current_time}"
+    
     hydragnn.utils.print.setup_log(log_name)
     writer = hydragnn.utils.model.get_summary_writer(log_name)
 
@@ -142,7 +146,8 @@ if __name__ == "__main__":
 
     modelname = "GFM" if args.modelname is None else args.modelname
 
-    tr.initialize()
+
+    tr.initialize(trlist = ["GPTLTracer", "SCOREPTracer", "CRAYPMTracer", "AMDTracer"])
     tr.disable()
     timer = Timer("load_data")
     timer.start()
@@ -402,4 +407,24 @@ if __name__ == "__main__":
             gp.pr_file(os.path.join("logs", log_name, "gp_timing.p%d" % rank))
         gp.pr_summary_file(os.path.join("logs", log_name, "gp_timing.summary"))
         gp.finalize()
+    if tr.has("NVIDIATracer"):
+        print(f"NVIDIATracer exists")
+        import hydragnn.utils.profile_and_tracing.nvidiaTracer as et
+        eligible = rank if args.everyone else 0
+        if rank == eligible:
+            et.pr_file(f"./logs/{log_name}/gpuLogs", eligible)
+
+    if tr.has("AMDTracer"):
+        print(f"AMDTracer exists")
+        import hydragnn.utils.profile_and_tracing.amdTracer as et
+        eligible = rank if args.everyone else 0
+        if rank == eligible:
+            et.pr_file(f"./logs/{log_name}/gpuLogs", eligible)
+            
+    if tr.has("CRAYPMTracer"):
+        print(f"CRAYPMtracer exists")
+        import hydragnn.utils.profile_and_tracing.craypmTracer as et
+        eligible = rank if args.everyone else 0
+        if rank == eligible:
+            et.pr_file(f"./logs/{log_name}/crayLogs", eligible)
     sys.exit(0)
